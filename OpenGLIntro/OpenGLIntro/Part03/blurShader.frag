@@ -5,7 +5,9 @@ out vec4 FragColor;
 
 uniform vec2 resolution;
 
-float weights[9] = float[](0.1, 0.2, 0.3, 0.4, 0.5, 0.4, 0.3, 0.2, 0.1);
+float weights[9] = float[](
+    0.0370, 0.1112, 0.2222, 0.2592, 0.2222, 0.1112, 0.0370, 0.0, 0.0
+);
 
 uniform sampler2D myTextureSampler;
 uniform vec2 direction;

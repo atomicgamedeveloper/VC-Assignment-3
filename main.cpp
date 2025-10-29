@@ -153,6 +153,33 @@ void applyCVFilter(int& mode, Mat& frame) {
     }
 }
 
+// Helper function to create an FBO with a color attachment texture
+GLuint createFBO(int width, int height, GLuint& outTexture) {
+    GLuint fbo;
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+    // Create texture to render to
+    glGenTextures(1, &outTexture);
+    glBindTexture(GL_TEXTURE_2D, outTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Attach texture to FBO
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outTexture, 0);
+
+    // Check FBO is complete
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        std::cerr << "ERROR: Framebuffer not complete!" << std::endl;
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        return 0; // Return 0 to indicate failure
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    return fbo;
+}
+
 int main(int argc, char** argv) {
     utils::logging::setLogLevel(utils::logging::LOG_LEVEL_SILENT);
 
@@ -266,30 +293,32 @@ int main(int argc, char** argv) {
         true);
 
     // Create FBO
-    GLuint fbo;
-    glGenFramebuffers(1, &fbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-
-    // Create texture to render to
     GLuint fboTexture;
-    glGenTextures(1, &fboTexture);
-    glBindTexture(GL_TEXTURE_2D, fboTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 720 * videoAspectRatio, 720, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    GLuint fbo = createFBO(720 * videoAspectRatio, 720, fboTexture);
 
-    // Attach texture to FBO
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTexture, 0);
-
-    // Check FBO is complete
-    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-        std::cout << "ERROR: Framebuffer not complete!" << std::endl;
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if (fbo == 0) {
+        std::cerr << "Failed to create FBO!" << std::endl;
+        // Handle error appropriately
+    }
 
     // Wrap the FBO texture so you can use it in your shaders
     Texture* fboTextureObj = new Texture();
     fboTextureObj->m_textureID = fboTexture;
+
+
+    // Create small FBO for pixelation filter
+    GLuint fboSmallTexture;
+    GLuint fboSmall = createFBO(int((720 * videoAspectRatio) / 3), int((720) / 3), fboSmallTexture);
+
+    if (fboSmall == 0) {
+        std::cerr << "Failed to create FBO!" << std::endl;
+        // Handle error appropriately
+    }
+
+    // Wrap the FBO texture so you can use it in your shaders
+    Texture* fboSmallTextureObj = new Texture();
+    fboSmallTextureObj->m_textureID = fboSmallTexture;
+
 
     currentShader->setTexture(videoTexture);
 
@@ -337,15 +366,6 @@ int main(int argc, char** argv) {
                     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
                     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-                    myQuad->setShader(shaders["pixelated"]);
-                    shaders["pixelated"]->setTexture(videoTexture);
-                    myQuad->render(renderingCamera);
-
-                    // PASS 2: Render to screen using FBO texture
-                    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-                    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-
                     // Pass blur uniforms to blur shader
                     GLuint _programID = shaders["blur"]->getProgramID();
                     GLuint directionLoc = glGetUniformLocation(_programID, "direction");
@@ -357,6 +377,21 @@ int main(int argc, char** argv) {
                     glUseProgram(_programID);
                     vec2 res(720 * videoAspectRatio, 720);
                     glUniform2fv(resolutionLoc, 1, &res[0]);
+
+
+                    myQuad->setShader(shaders["blur"]);
+                    shaders["blur"]->setTexture(videoTexture);
+                    myQuad->render(renderingCamera);
+
+
+                    // PASS 2: Render to screen using FBO texture
+                    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+                    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+                    // Pass blur uniforms to blur shader
+                    glUseProgram(_programID);
+                    dir = vec2(0, 1);
+                    glUniform2fv(directionLoc, 1, &dir[0]);
 
                     myQuad->setShader(shaders["blur"]);
                     shaders["blur"]->setTexture(fboTextureObj);
