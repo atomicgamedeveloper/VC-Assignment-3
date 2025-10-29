@@ -34,7 +34,6 @@ void TextureShader::setTexture(Texture* texture){
 void TextureShader::bind() {
     Shader::bind();
     if (m_texture && programID) {
-        std::cout << "Binding texture to unit 0\n";   // NEW
         m_texture->bindTexture();
         glUniform1i(m_TextureID, 0);
     }

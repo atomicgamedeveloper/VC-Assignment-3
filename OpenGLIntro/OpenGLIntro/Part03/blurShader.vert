@@ -4,7 +4,7 @@ layout (location = 0) in vec3 vertexPosition_modelspace;
 out vec2 UV;
 
 uniform mat4 MVP;
-const float aspectRatio=1.777; // <-- NEW: The video's aspect ratio
+uniform float aspectRatio; //const float aspectRatio=1.777; // <-- NEW: The video's aspect ratio
 
 void main() {
     gl_Position = MVP * vec4(vertexPosition_modelspace, 1.0);

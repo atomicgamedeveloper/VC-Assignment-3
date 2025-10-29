@@ -25,12 +25,12 @@ public:
     GLuint getTextureID();
     void update(unsigned char* data, int width, int height, bool bgrFormat = true);
 
+    GLuint m_textureID;
+
 
 private:
     GLuint loadBMP_custom(const char* imagepath);
     GLuint loadDDS(const char* imagepath);
-
-    GLuint m_textureID;
 };
 
 #endif

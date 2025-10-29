@@ -23,13 +23,12 @@ Object::Object(){
     shader = NULL;
     
 }
-void Object::setShader(Shader* newshader){
-    if(shader!=NULL)
-        delete shader;
-    
+void Object::setShader(Shader* newshader) {
+    // Just assign the pointer - don't delete it!
+    // The shader is managed elsewhere (in main)
     shader = newshader;
-    
 }
+
 glm::mat4 Object::getTransform(){
     return transform;
 }
