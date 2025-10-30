@@ -14,7 +14,7 @@ void main() {
     float b = texColor.b;
     
     // Red mask
-    bool isRed = (r > 0.5) && (g < 0.5) && (b < 0.5);
+    bool isRed = (r > 0.49) && (g < 0.1) && (b < 0.1);
     
     // Greyscale
     float gray = 0.299 * r + 0.587 * g + 0.114 * b;

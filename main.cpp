@@ -34,10 +34,7 @@ using namespace std;
 using namespace cv;
 const char* window_name = "Live Camera Project";
 
-int lowThreshold = 0;
-const int max_lowThreshold = 100;
-const int _ratio = 3;
-const int kernel_size = 3;
+int BASE_WIDTH = 720;
 
 // Helper function to initialize the window
 bool initWindow(std::string windowName, float aspectRatio);
@@ -120,34 +117,81 @@ void resetAverage(double& totalTime, int& totalFrames) {
     totalFrames = 0;
 }
 
-void controlFilters(int& mode, int& renderMode, bool& hasChanged, double& totalTime, int& totalFrames) {
+void controlApp(int& mode, int& renderMode, bool& hasChanged,
+    double& totalTime, int& totalFrames, bool& resolutionChanged) {
     vector<string> filterLabels{ "None", "Grey", "Pixelated", "SinCity", "Median Blur","Gaussian" };
     vector<string> renderLabels{ "OpenCV","GLSL" };
 
     const int MAX_MODE = 3, MIN_MODE = -1;
     const int MAX_RENDER_MODE = 1, MIN_RENDER_MODE = 0;
+    
+    double xpos, ypos;
+    glfwGetCursorPos(window, &xpos, &ypos);
+    int mbleft = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
+    if (mbleft == GLFW_PRESS) {
+        // left button is pressed
+    }
 
-    bool left = GetAsyncKeyState(VK_LEFT) & 0x8000;
-    bool right = GetAsyncKeyState(VK_RIGHT) & 0x8000;
-    bool up = GetAsyncKeyState(VK_UP) & 0x8000;
-    bool down = GetAsyncKeyState(VK_DOWN) & 0x8000;
+	std::cout << "\rCursor Position: (" << xpos << ", " << ypos << ")   " << std::flush;
+
+    // Filters
+    bool left = (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS);
+    bool right = (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS);
+
+    // Render mode
+    bool up = (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS);
+    bool down = (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS);
+
+    // Resolution
+    bool one = (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS);
+    bool two = (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS);
+    bool three = (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS);
+    bool four = (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS);
 
     if (!hasChanged) {
         if (right && mode < MAX_MODE) mode++;
         if (left && mode > MIN_MODE) mode--;
         if (up && renderMode < MAX_RENDER_MODE) renderMode++;
         if (down && renderMode > MIN_RENDER_MODE) renderMode--;
+		string input_detection = "\nInput detected.\n";
+
+		resolutionChanged = one || two || three || four;
+        if (one) {
+            BASE_WIDTH = 480;
+            std::cout << input_detection;
+            std::cout << "\nResolution set to 480p.\n" << endl;
+            resetAverage(totalTime, totalFrames);
+		}
+        if (two) {
+            BASE_WIDTH = 720;
+            std::cout << input_detection;
+            std::cout << "\nResolution set to 720p.\n" << endl;
+            resetAverage(totalTime, totalFrames);
+		}
+        if (three) {
+            BASE_WIDTH = 1080;
+            std::cout << input_detection;
+            std::cout << "\nResolution set to 1080p.\n" << endl;
+            resetAverage(totalTime, totalFrames);
+        }
+        if (four) {
+            BASE_WIDTH = 1600;
+            std::cout << input_detection;
+            std::cout << "\nResolution set to 1600p.\n" << endl;
+            resetAverage(totalTime, totalFrames);
+        }
 
         if (right || left || up || down) {
             hasChanged = true;
-            std::cout << "\nInput detected." << endl;
+            std::cout << input_detection;
             std::cout << "filter: " << filterLabels.at(mode + 1) << endl;
             std::cout << "render mode: " << renderLabels.at(renderMode) << "\n" << endl;
             resetAverage(totalTime, totalFrames);
         }
     }
 
-    if (!left && !right && !up && !down) hasChanged = false;
+    if (!left && !right && !up && !down &&
+        !one && !two && !three && !four) hasChanged = false;
 }
 
 void applyCVFilter(int& mode, Mat& frame) {
@@ -191,6 +235,19 @@ GLuint createFBO(int width, int height, GLuint& outTexture) {
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     return fbo;
+}
+
+void resizeFBO(GLuint& fbo, GLuint& texture, int newWidth, int newHeight) {
+    // Delete old resources
+    glDeleteTextures(1, &texture);
+    glDeleteFramebuffers(1, &fbo);
+
+    // Create new FBO with new size
+    fbo = createFBO(newWidth, newHeight, texture);
+
+    if (fbo == 0) {
+        std::cerr << "Failed to recreate FBO!" << std::endl;
+    }
 }
 
 int main(int argc, char** argv) {
@@ -242,11 +299,12 @@ int main(int argc, char** argv) {
 
     // Create shader map
     map<string, TextureShader*> shaders;
-    shaders["none"] = new TextureShader("videoTextureShader.vert", "videoTextureShader.frag");
-    shaders["greyscale"] = new TextureShader("greyscaleShader.vert", "greyscaleShader.frag");
-    shaders["pixelated"] = new TextureShader("pixelatedShader.vert", "pixelatedShader.frag");
-    shaders["blur"] = new TextureShader("blurShader.vert", "blurShader.frag");
-    shaders["sincity"] = new TextureShader("sinCityShader.vert", "sinCityShader.frag");
+	string vertexShaderName = "videoTextureShader.vert";
+    shaders["none"] = new TextureShader(vertexShaderName, "videoTextureShader.frag");
+    shaders["greyscale"] = new TextureShader(vertexShaderName, "greyscaleShader.frag");
+    shaders["pixelated"] = new TextureShader(vertexShaderName, "pixelatedShader.frag");
+    shaders["blur"] = new TextureShader(vertexShaderName, "blurShader.frag");
+    shaders["sincity"] = new TextureShader(vertexShaderName, "sinCityShader.frag");
 
     cout << "Texture shader program ID: " << shaders["none"]->getProgramID() << endl;
     cout << "Greyscale shader program ID: " << shaders["greyscale"]->getProgramID() << endl;
@@ -313,7 +371,7 @@ int main(int argc, char** argv) {
 
     // Create FBO
     GLuint fboTexture;
-    GLuint fbo = createFBO(720 * videoAspectRatio, 720, fboTexture);
+    GLuint fbo = createFBO(BASE_WIDTH * videoAspectRatio, BASE_WIDTH, fboTexture);
 
     if (fbo == 0) {
         std::cerr << "Failed to create FBO!" << std::endl;
@@ -327,11 +385,10 @@ int main(int argc, char** argv) {
 
     // Create small FBO for pixelation filter
     GLuint fboSmallTexture;
-    GLuint fboSmall = createFBO(int((720 * videoAspectRatio) / 10), int((720) / 10), fboSmallTexture);
+    GLuint fboSmall = createFBO(int((BASE_WIDTH * videoAspectRatio) / 10), int((BASE_WIDTH) / 10), fboSmallTexture);
 
     if (fboSmall == 0) {
         std::cerr << "Failed to create FBO!" << std::endl;
-        // Handle error appropriately
     }
 
     // Wrap the FBO texture so you can use it in your shaders
@@ -347,6 +404,7 @@ int main(int argc, char** argv) {
     int mode = -1;
     int renderMode = 0;
     bool hasChanged = 0;
+    bool resolutionChanged = false;
     double totalTime = 0;
     int totalFrames = 0;
 
@@ -362,7 +420,25 @@ int main(int argc, char** argv) {
 
             cap.read(frame);
 
-            controlFilters(mode, renderMode, hasChanged, totalTime, totalFrames);
+            controlApp(mode, renderMode, hasChanged, totalTime, totalFrames, resolutionChanged);
+
+            if (resolutionChanged) {
+                // Resize window
+                glfwSetWindowSize(window, BASE_WIDTH * videoAspectRatio, BASE_WIDTH);
+                glViewport(0, 0, BASE_WIDTH * videoAspectRatio, BASE_WIDTH);
+
+                // Resize FBOs
+                resizeFBO(fbo, fboTexture, BASE_WIDTH * videoAspectRatio, BASE_WIDTH);
+                fboTextureObj->m_textureID = fboTexture;
+
+                resizeFBO(fboSmall, fboSmallTexture,
+                    int((BASE_WIDTH * videoAspectRatio) / 10),
+                    int(BASE_WIDTH / 10));
+                fboSmallTextureObj->m_textureID = fboSmallTexture;
+
+                resolutionChanged = false;
+            }
+
             bool shaderRendering = renderMode;
             isMultiPass = false;
             if (shaderRendering) {
@@ -383,7 +459,7 @@ int main(int argc, char** argv) {
 
                     // PASS 1: Render to small FBO
                     glBindFramebuffer(GL_FRAMEBUFFER, fboSmall);
-                    glViewport(0, 0, int((720 * videoAspectRatio) / 10), int(720 / 10));
+                    glViewport(0, 0, int((BASE_WIDTH * videoAspectRatio) / 10), int(BASE_WIDTH / 10));
                     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                     myQuad->setShader(shaders["none"]);
@@ -392,7 +468,7 @@ int main(int argc, char** argv) {
 
                     //// PASS 2: Upscale
                     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-                    glViewport(0, 0, 720 * videoAspectRatio, 720);
+                    glViewport(0, 0, BASE_WIDTH * videoAspectRatio, BASE_WIDTH);
                     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                     myQuad->setShader(shaders["none"]);
@@ -461,9 +537,9 @@ int main(int argc, char** argv) {
     delete renderingCamera;
 
     // Clean up all shaders in map
-    for (auto& pair : shaders) {
-        delete pair.second;
-    }
+    //for (auto& pair : shaders) {
+    //    delete pair;
+    //}
 
     delete videoTexture;
 
@@ -487,7 +563,7 @@ bool initWindow(std::string windowName, float aspectRatio) {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    window = glfwCreateWindow(720 * aspectRatio, 720, windowName.c_str(), NULL, NULL);
+    window = glfwCreateWindow(BASE_WIDTH * aspectRatio, BASE_WIDTH, windowName.c_str(), NULL, NULL);
     if (window == NULL) {
         fprintf(stderr, "Failed to open GLFW window.\n");
         glfwTerminate();
