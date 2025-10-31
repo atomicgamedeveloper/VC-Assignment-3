@@ -1,10 +1,19 @@
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+
 #include "../hpp/InputHandler.hpp"
+#include "../hpp/AppUtilities.hpp"
 #include <iostream>
 using namespace std;
 
 void FrameStats::reset() {
     totalTime = 0;
     totalFrames = 0;
+}
+
+void FrameStats::addFrame(double frameTime) {
+    totalTime += frameTime;
+    totalFrames++;
 }
 
 void handleMouseInput(MouseState& mouse) {
@@ -112,9 +121,47 @@ void handleResolutionInput(bool& resolutionChanged, InputState& input, FrameStat
         input.resolutionChanged = false;
 }
 
+void handleQuit() {
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
+}
+
+void handleAffineInput(float& prevFrameRotation, float& frameRotation,
+    float& frameTranslationX, float& frameTranslationY,
+    float& frameScale, InputState& input) {
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+        frameRotation = 0;
+        frameTranslationX = 0;
+        frameTranslationY = 0;
+        frameScale = 1.0f;
+    }
+
+    if (input.mouse.mbright) {
+        double dx = input.mouse.xpos - input.mouse.rightClickX;
+        double dy = input.mouse.ypos - input.mouse.rightClickY;
+        double dragDistance = sqrt(dx * dx + dy * dy);
+        frameRotation = static_cast<float>(dragDistance);
+    }
+
+    if (input.mouse.mbleft) {
+        double dx = input.mouse.xpos - input.mouse.leftClickX;
+        double dy = input.mouse.ypos - input.mouse.leftClickY;
+        frameTranslationX = static_cast<float>(dx);
+        frameTranslationY = static_cast<float>(dy);
+    }
+
+    if (input.mouse.scroll != 0) {
+        frameScale *= std::pow(1.1f, static_cast<float>(input.mouse.scroll));
+        frameScale = std::max(0.1f, frameScale);
+
+        input.mouse.scroll = 0;
+    }
+}
+
 void controlApp(int& mode, int& renderMode, bool& resolutionChanged, FrameStats& stats, InputState& input) {
     handleMouseInput(input.mouse);
     handleFilterInput(mode, input, stats);
     handleRenderModeInput(renderMode, input, stats);
     handleResolutionInput(resolutionChanged, input, stats);
+    handleQuit();
 }
