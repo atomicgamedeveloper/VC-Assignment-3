@@ -42,6 +42,10 @@ add_executable(ExperimentsExec
     ${COMMON_SOURCES}
     "src/AppUtilities.cpp")
 
+add_executable(Calibration
+    src/Calibration.cpp
+    ${COMMON_SOURCES})
+
 add_executable(makeCharucoBoard
     src/makeCharucoBoard.cpp
 )
@@ -55,7 +59,7 @@ target_link_libraries(makeCharucoBoard PRIVATE
     ${OpenCV_LIBS}
 )
 
-foreach(target MainExec ExperimentsExec)
+foreach(target MainExec ExperimentsExec Calibration)
     target_include_directories(${target} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/src
