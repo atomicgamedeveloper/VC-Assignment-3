@@ -13,6 +13,8 @@ find_package(glfw3 CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(glad CONFIG REQUIRED)
 
+set(Stb_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/stb")
+
 set(CUSTOM_SHADERS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/customShaders")
 
 file(GLOB SHADER_FILES
@@ -21,8 +23,6 @@ file(GLOB SHADER_FILES
 )
 
 set(COMMON_SOURCES
-    
-    
     src/common/Camera.cpp
     src/common/Scene.cpp
     src/common/Object.cpp
@@ -67,6 +67,7 @@ foreach(target MainExec ExperimentsExec Calibration testGLFW)
     target_include_directories(${target} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${Stb_INCLUDE_DIR}
     )
 
     target_compile_definitions(${target} PRIVATE

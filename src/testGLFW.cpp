@@ -1,6 +1,14 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb.h>
+
+unsigned int window_width = 800;
+unsigned int window_height = 800;
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
@@ -15,7 +23,7 @@ int main() {
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 	// Create a window
-	GLFWwindow* window = glfwCreateWindow(640, 480, "Hello World!", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(window_width, window_height, "Hello World!", NULL, NULL);
 
 	if (!window) {
 		std::cout << "Failed to create the window!" << std::endl;
@@ -35,16 +43,30 @@ int main() {
 	const char* vertexShaderSrc =
 		"#version 330 core\n"
 		"layout (location = 0) in vec3 aPos;\n" // Specifying we have an input of vec3 called aPos
+		"layout (location = 1) in vec3 aColor;\n"
+		"layout (location = 2) in vec2 aTex;\n"
+		"uniform mat4 model;\n" // Import matrices into vertex shader
+		"uniform mat4 view;\n"
+		"uniform mat4 projection;\n"
+		"uniform float scale;\n" // Vertex scale
+
+		"out vec3 color;\n" // Output colour for fragment shader
+		"out vec2 texCoord;\n" // Output texture coordinates for fragment shader
 		// found at location 0
 		"void main() {\n"
-		"    gl_Position = vec4(aPos.x,aPos.y,aPos.z,1.0f);\n" // Input pos passed to gl_Position
+		"    gl_Position = projection * view * model * vec4(aPos, 1.0f);\n" // Input pos passed to gl_Position
+		"    color = aColor;\n" // vertex data colors -> color
+		"    texCoord = aTex;\n" // vertex data texture coordinates -> texCoord
 		"}\0"; //GLSL language, like OpenGL
 
 	const char* fragmentShaderSrc =
 		"#version 330 core\n"
 		"out vec4 fragColor;\n" // Output, all needed to draw a single pixel
+		"in vec3 color;\n"
+		"in vec2 texCoord;\n"
+		"uniform sampler2D tex0;\n" // Which texture unit for OpenGL to use
 		"void main() {\n"
-		"    fragColor = vec4(0.0f,0.0f,1.0f,1.0f);\n" //RGBA output
+		"    fragColor = texture(tex0,texCoord);\n" //RGBA output
 		"}\0";
 
 	unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER); // Create empty vertex shader
@@ -92,48 +114,202 @@ int main() {
 	glDeleteShader(vertexShader);
 	glDeleteShader(fragmentShader);
 
-	// Draw triangle (normalized coordinates)
+	// Draw square (normalized coordinates)
 	float vertices[] = {
-		-0.5f,-0.5f,0.0f,
-		0.0f,0.5f,0.0f,
-		0.5f,-0.5f,0.0f,
+		// Front face
+		-0.5f, -0.5f,  0.5f,    1.0f, 0.0f, 0.0f,    0.0f, 0.0f, // Bottom left
+		 0.5f, -0.5f,  0.5f,    0.0f, 1.0f, 0.0f,    1.0f, 0.0f, // Top left
+		 0.5f,  0.5f,  0.5f,    0.0f, 0.0f, 1.0f,    1.0f, 1.0f, // Top right
+		-0.5f,  0.5f,  0.5f,    1.0f, 1.0f, 1.0f,    0.0f, 1.0f, // Bottom right
+
+		// Back face
+		-0.5f, -0.5f, -0.5f,    1.0f, 0.0f, 0.0f,    1.0f, 0.0f,
+		 0.5f, -0.5f, -0.5f,    0.0f, 1.0f, 0.0f,    0.0f, 0.0f,
+		 0.5f,  0.5f, -0.5f,    0.0f, 0.0f, 1.0f,    0.0f, 1.0f,
+		-0.5f,  0.5f, -0.5f,    1.0f, 1.0f, 1.0f,    1.0f, 1.0f
+	};
+
+	// Faces
+	unsigned int indices[] = {
+		// Front
+		0, 1, 2,
+		2, 3, 0,
+		// Right
+		1, 5, 6,
+		6, 2, 1,
+		// Back
+		5, 4, 7,
+		7, 6, 5,
+		// Left
+		4, 0, 3,
+		3, 7, 4,
+		// Top
+		3, 2, 6,
+		6, 7, 3,
+		// Bottom
+		4, 5, 1,
+		1, 0, 4,
 	};
 
 	// Input to graphics pipeline - vertex shader
 	// Creating memory on GPU
-	unsigned int VAO, VBO; // create vertex buffer object and vertex array object (saving specifications instead of reinitializing again)
+	unsigned int VAO, VBO, EBO; // create vertex buffer object and vertex array object (saving specifications instead of reinitializing again)
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
+	glGenBuffers(1, &EBO);
 
 	glBindVertexArray(VAO);
 	glBindBuffer(GL_ARRAY_BUFFER, VBO); // Bind it and specify type (array buffer)
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
 
 	// Fill memory with data
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices,GL_STATIC_DRAW); // static = set only once, drawn a lot
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices,GL_STATIC_DRAW);
 	// gl_stream_draw = set once, used by gpu just a few times 
 	// gl_dynamic_draw = data is changed a lot and drawn a lot
 
 	// How to interpret memory
 	// From vertex shader, location 0, size is 3 as vec3, float (opengl type),
 	// no normalization, could be 0 and let open gl determine it or write it as per coordinate size,
-	// start of the veretx - casted 0
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, (void*)0);
+	// start of the vertex - casted 0
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (void*)0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (void*)(3 * sizeof(float)));
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (void*)(6 * sizeof(float)));
+	
 	glEnableVertexAttribArray(0); // Enable vertex attrib pointer.
+	glEnableVertexAttribArray(1);
+	glEnableVertexAttribArray(2);
 
 	// Unbind everything.
 	// Can be binded whenever needed through vertex array
 	glBindVertexArray(0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
+
+
+	// Draw camera plane.
+	float quadVertices[] = {
+		// Coords,               Colour,              Texture Coord
+		-1.0f, -1.0f,  -1.0f,    1.0f, 0.0f, 0.0f,    0.0f, 0.0f, // Bottom left
+		 1.0f, -1.0f,  -1.0f,    0.0f, 1.0f, 0.0f,    1.0f, 0.0f, // Top left
+		 1.0f,  1.0f,  -1.0f,    0.0f, 0.0f, 1.0f,    1.0f, 1.0f, // Top right
+		-1.0f,  1.0f,  -1.0f,    1.0f, 1.0f, 1.0f,    0.0f, 1.0f  // Bottom right
+	};
+
+	unsigned int quadIndices[] = {
+		1, 3, 0,
+		1, 2, 3
+	};
+
+	unsigned int VAO_PLANE, VBO_PLANE, EBO_PLANE;
+	glGenVertexArrays(1, &VAO_PLANE);
+	glGenBuffers(1, &VBO_PLANE);
+	glGenBuffers(1, &EBO_PLANE);
+	glBindVertexArray(VAO_PLANE);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO_PLANE);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO_PLANE);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(quadIndices), quadIndices, GL_STATIC_DRAW);
+
+	// Link VBO attributes like coordinates and colours to VAO.
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (void*)0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (void*)(3*sizeof(float)));
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (void*)(6 * sizeof(float)));
+
+	// Enable attributes
+	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
+	glEnableVertexAttribArray(2);
+
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+
+	const bool wireframeMode = false;
+	if (wireframeMode) {
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	}
+
+	GLuint uniID = glGetUniformLocation(shaderProgram, "scale"); 
+
+
+	// Texture
+
+	int imageWidth, imageHeight, channels;
+	const char* texturePath = "C:/Users/Maloik/source/repos/VC-Assignment-3/src/textures/pop_cat.png"; 
+	stbi_set_flip_vertically_on_load(true);
+	unsigned char* bytes = stbi_load(texturePath, &imageWidth, &imageHeight, &channels,0);
+
+	GLuint tex0Uniform = glGetUniformLocation(shaderProgram, "tex0");
+
+	GLuint texture;
+	glGenTextures(1, &texture);
+
+	// Make texture unit
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, texture);
+
+	// Adjust texture settings
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,GL_NEAREST); // Scale with nearest neighbour
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,GL_REPEAT); // Repeat image on x axis
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,GL_REPEAT); // Repeat image on y axis
+		
+	// Generate image - texture type, 0, colour channels, width, height, 0, colour channels, data type of pixels, data itself
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, imageWidth, imageHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, bytes); //RGBA for pngs, RGB for jpegs
+
+	glGenerateMipmap(GL_TEXTURE_2D); // Generate smaller resolutions of the image for far distance
+
+	// Free up resources
+	stbi_image_free(bytes);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	float rotation = 0.0f;
+	double previousTime = glfwGetTime();
+
+	glEnable(GL_DEPTH_TEST);
 	while (!glfwWindowShouldClose(window)) {
 		processInput(window);
 
 		glClearColor(0.6f, 0.0f, 0.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT); // Essential before rendering a new scene, blank and ready!
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Essential before rendering a new scene, blank and ready! Also clear depth buffer bit
 
 		glUseProgram(shaderProgram); // Use shader program
+		glUniform1i(tex0Uniform, 0);
+		glBindTexture(GL_TEXTURE_2D, texture);
+
+		double currentTime = glfwGetTime();
+		if (currentTime - previousTime >= 1 / 60) {
+			rotation += 0.05f;
+			previousTime = currentTime;
+		}
+
+		// Initializing transformation matrices for 3D
+		glm::mat4 model = glm::mat4(1.0f); // Centre of the world
+		glm::mat4 view = glm::mat4(1.0f);
+		glm::mat4 projection = glm::mat4(1.0f);
+
+		// Transform them
+		model = glm::rotate(model, glm::radians(rotation), glm::vec3(0.0f, 1.0f, 0.0f));
+		view = glm::translate(view, glm::vec3(0.0f, -0.5f, -2.0f)); // Move world away from us
+		projection = glm::perspective(glm::radians(45.0f), (float)window_width / (float)window_height, 0.1f, 100.0f); // Defining projection frustrum, degrees to radians
+
+		int modelLoc = glGetUniformLocation(shaderProgram, "model");
+		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+		int viewLoc = glGetUniformLocation(shaderProgram, "view");
+		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+		int projectionLoc = glGetUniformLocation(shaderProgram, "projection");
+		glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+
 		glBindVertexArray(VAO); // Bind vertex array
-		glDrawArrays(GL_TRIANGLES, 0, 3); // kind, start vertex, end vertex
+
+		//glDrawArrays(GL_TRIANGLES, 0, 3); // kind, start vertex, end vertex
+		glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(int), GL_UNSIGNED_INT, 0); // ..., 6 points, ..., start index 
+
+		glBindVertexArray(VAO_PLANE); // Bind vertex array
+		glDrawElements(GL_TRIANGLES, sizeof(quadIndices) / sizeof(int), GL_UNSIGNED_INT, 0); // ..., 6 points, ..., start index 
 
 		glfwSwapBuffers(window); // Work with other buffer
 		glfwPollEvents(); // Process pending inputs
@@ -143,6 +319,7 @@ int main() {
 	glDeleteProgram(shaderProgram);
 	glDeleteBuffers(1, &VBO);
 	glDeleteVertexArrays(1, &VAO);
+	glDeleteTextures(1, &texture);
 
 	glfwTerminate();
 	return 0;
@@ -156,5 +333,7 @@ void processInput(GLFWwindow* window) {
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 	std::cout << "window size is " << width << " x " << height << std::endl;
-	glViewport(0, 0, width, height); // Resetting the rendering area (view port)
+	window_width = width;
+	window_height = height;
+	glViewport(0, 0, window_width, window_height); // Resetting the rendering area (view port)
 }
