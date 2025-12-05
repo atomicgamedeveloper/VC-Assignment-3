@@ -423,7 +423,7 @@ int main() {
 		cv::undistort(frame, undistorted, cameraMatrix, distortionCoefficients);
 		frame = undistorted;
 
-		// Detect ChArUco board
+		// Detect CharucoBoard
 		currentCharucoCorners = cv::Mat();
 		currentCharucoIds = cv::Mat();
 		charucoDetector.detectBoard(frame, currentCharucoCorners, currentCharucoIds);
